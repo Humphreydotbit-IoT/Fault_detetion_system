@@ -1,0 +1,143 @@
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq_hotel_FDPJ
+    ports:
+      - "5672:5672"  # AMQP port for RabbitMQ
+      - "15672:15672"  # Management UI port
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
+    networks:
+      - hotel_network
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 10s
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: timescaledb_hotel_FDPJ
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${DATABASE_USER}
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+      - POSTGRES_DB=${DATABASE_NAME}
+    volumes:
+      - ./localVolume:/var/lib/postgresql/data
+    networks:
+      - hotel_network
+
+  django_backend:
+    build:
+      context: ./django_backend
+      dockerfile: Dockerfile
+    container_name: django_backend_hotel_FDPJ
+    depends_on:
+      - timescaledb
+    environment:
+      - DATABASE_USER=${DATABASE_USER}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+      - DATABASE_NAME=${DATABASE_NAME}
+      - DATABASE_HOST=${DATABASE_HOST}  
+      - DATABASE_PORT=${DATABASE_PORT}
+      - DJANGO_DEBUG=${DJANGO_DEBUG}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY} 
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    ports:
+      - "8000:8000"
+    networks:
+      - hotel_network
+    volumes:
+    - ./django_backend:/app
+
+
+  iaq_agent:
+    build:
+      context: ./iaq_agent  
+      dockerfile: dockerfile
+    container_name: iaq_agent_hotel_FDPJ
+    command: python iaq_agent.py  
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASS=${RABBITMQ_PASS}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
+      - CSV_PATH=/app/data/iaq_data.csv
+    volumes:
+      - ./data:/app/data
+    networks:
+      - hotel_network
+
+  power_agent:
+    build:
+      context: ./power_agent  
+      dockerfile: dockerfile
+    container_name: power_agent_hotel_FDPJ
+    command: python power_agent.py  
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASS=${RABBITMQ_PASS}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
+      - CSV_PATH=/app/data/power_data.csv
+    volumes:
+      - ./data:/app/data
+    networks:
+      - hotel_network
+
+  presence_agent:
+    build:
+      context: ./presence_agent  
+      dockerfile: dockerfile
+    container_name: presence_agent_hotel_FDPJ
+    command: python presence_agent.py  
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASS=${RABBITMQ_PASS}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
+      - CSV_PATH=/app/data/presence_data.csv
+    volumes:
+      - ./data:/app/data
+    networks:
+      - hotel_network
+
+  fault_detection_agent:
+    build:
+      context: ./fault_detection_agent 
+      dockerfile: dockerfile
+    container_name: fault_detection_agent_hotel_FDPJ
+    command: python fault_detection_agent.py  
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASS=${RABBITMQ_PASS}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
+      - CSV_PATH=/app/data/faults.csv
+    volumes:
+      - ./data:/app/data
+    networks:
+      - hotel_network
+
+networks:
+  hotel_network:
+    driver: bridge  
+
