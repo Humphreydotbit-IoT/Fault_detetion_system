@@ -99,3 +99,7 @@ For detailed documentation, please see the [Wiki](https://github.com/Humphreydot
 ## Acknowledgments
 
 This project was developed as a technical test implementation of an Automatic Fault Detection and Diagnostic system.
+
+## Demonstration Video Link
+
+https://youtu.be/H3LdyvKNdpw
